@@ -186,6 +186,20 @@ def clean_title(title: str) -> str:
 # Scraping (needs Playwright, because the listing is rendered by JavaScript)
 # --------------------------------------------------------------------------
 
+def load(page, url: str) -> None:
+    """Open a page and give its JavaScript time to render.
+
+    Waiting for "networkidle" alone can hang forever on sites with
+    analytics or polling, so it is only a best-effort extra wait.
+    """
+    page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+    try:
+        page.wait_for_load_state("networkidle", timeout=15_000)
+    except Exception:
+        pass
+    page.wait_for_timeout(2_000)
+
+
 def scrape(now: datetime) -> list[dict]:
     from playwright.sync_api import sync_playwright
 
@@ -197,7 +211,7 @@ def scrape(now: datetime) -> list[dict]:
         )
         page = ctx.new_page()
 
-        page.goto(LIST_URL, wait_until="networkidle", timeout=60_000)
+        load(page, LIST_URL)
         hrefs = page.evaluate(
             """() => {
                 const root = document.querySelector('main') || document.body;
@@ -209,7 +223,7 @@ def scrape(now: datetime) -> list[dict]:
 
         for url in urls:
             try:
-                page.goto(url, wait_until="networkidle", timeout=60_000)
+                load(page, url)
                 info = page.evaluate(
                     """() => {
                         const meta = n => (document.querySelector(

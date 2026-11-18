@@ -214,12 +214,21 @@ def scrape(now: datetime) -> list[dict]:
         load(page, LIST_URL)
         hrefs = page.evaluate(
             """() => {
-                const root = document.querySelector('main') || document.body;
+                const root = document.body;
                 return [...root.querySelectorAll('a[href]')].map(a => a.href);
             }"""
         )
         urls = sorted({normalize_url(h) for h in hrefs if is_project_url(h)})
         print(f"Listing page links that look like projects: {len(urls)}")
+        if not urls:
+            # Show what the page actually was, to diagnose layout changes
+            # or bot-check pages.
+            print(f"  page title: {page.title()!r}  final url: {page.url}")
+            print(f"  links on page: {len(hrefs)}")
+            for h in sorted(set(hrefs))[:60]:
+                print(f"    {h}")
+            body = page.evaluate("() => document.body.innerText") or ""
+            print("  page text (start):\n" + body[:1500])
 
         for url in urls:
             try:

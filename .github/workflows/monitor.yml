@@ -1,9 +1,12 @@
 name: Crowd Supply monitor
 
 on:
-  schedule:
-    # Every 6 hours (GitHub uses UTC). Runs at ~05:47, 11:47, 17:47, 23:47 IST.
-    - cron: "17 */6 * * *"
+  # Schedule paused: Crowd Supply shows automated visitors a Cloudflare
+  # "Verify you are human" check, so scheduled runs can't read the site.
+  # To turn it back on, uncomment these three lines.
+  # schedule:
+  #   # Every 6 hours (GitHub uses UTC). Runs at ~05:47, 11:47, 17:47, 23:47 IST.
+  #   - cron: "17 */6 * * *"
   workflow_dispatch: # adds a "Run workflow" button for manual runs
 
 permissions:

@@ -25,8 +25,14 @@ const CHECK_EVERY_MINUTES = 15;             // 1, 5, 10, 15 or 30
 // Also forward Crowd Supply emails that are neither new projects nor
 // launch / ending-soon updates (e.g. shipping updates, order emails):
 const FORWARD_OTHER_CROWD_SUPPLY_EMAILS = false;
+// Keep only crowdfunding emails in your inbox: other Crowd Supply emails
+// (offers, in-stock news, events, newsletters with no new campaigns) are
+// archived - not deleted - and labelled "Crowd Supply/Other". Order, payment
+// and shipping emails are never archived.
+const ARCHIVE_OTHER_CROWD_SUPPLY_EMAILS = true;
 const GMAIL_QUERY = 'from:crowdsupply.com newer_than:7d';
 const LABEL_NAME = 'Crowd Supply/Sent to WhatsApp';
+const OTHER_LABEL_NAME = 'Crowd Supply/Other';
 
 // ============ 2. FUNCTIONS YOU RUN ============
 
@@ -84,20 +90,39 @@ function checkCrowdSupplyEmails() {
     });
     pending.sort(function (a, b) { return a.msg.getDate() - b.msg.getDate(); });
 
+    const keep = new Set();    // threads holding a crowdfunding or order email
+    const toArchive = {};      // threads holding only other Crowd Supply email
     pending.forEach(function (item) {
       const msg = item.msg;
-      const alert = buildAlert(msg.getSubject(), msg.getPlainBody(), msg.getBody(), {
+      const subject = msg.getSubject();
+      const alert = buildAlert(subject, msg.getPlainBody(), msg.getBody(), {
         forwardOther: FORWARD_OTHER_CROWD_SUPPLY_EMAILS,
       });
+      const crowdfunding = Boolean(alert) && !/^📧/.test(alert);
       if (alert) {
         sendWhatsApp_(alert); // throws on failure -> retried next run
-        item.thread.addLabel(label);
+        if (crowdfunding) item.thread.addLabel(label);
+      }
+      if (!crowdfunding && !isTransactional(subject)) {
+        toArchive[item.thread.getId()] = item.thread;
+      } else {
+        keep.add(item.thread.getId());
       }
       doneList.push(msg.getId());
       done.add(msg.getId());
       // Save after every email so nothing is sent twice if a later one fails.
       props.setProperty('DONE_IDS', JSON.stringify(doneList.slice(-500)));
     });
+
+    // Tidy the inbox: archive (never delete) threads with no crowdfunding email.
+    if (ARCHIVE_OTHER_CROWD_SUPPLY_EMAILS) {
+      Object.keys(toArchive).forEach(function (id) {
+        const thread = toArchive[id];
+        if (keep.has(id) || hasLabel_(thread, LABEL_NAME)) return;
+        thread.addLabel(getLabel_(OTHER_LABEL_NAME));
+        thread.moveToArchive();
+      });
+    }
   } finally {
     lock.releaseLock();
   }
@@ -281,6 +306,12 @@ function buildAlert(subject, plainBody, htmlBody, opts) {
   return null;
 }
 
+/** Order / payment / shipping / account emails - never archived. */
+function isTransactional(subject) {
+  return /\b(order|receipt|invoice|payment|paid|charge[ds]?|refund|ship(ped|ping|ment)?|deliver(y|ed)|tracking|address|password|sign[- ]?in|log[- ]?in|verify|verification|confirm(ation)?|account)\b/i
+    .test(String(subject || ''));
+}
+
 /** Splits long text on blank lines so each WhatsApp message stays short. */
 function splitMessage(text, limit) {
   limit = limit || 1500;
@@ -326,8 +357,13 @@ function sendWhatsApp_(text) {
   });
 }
 
-function getLabel_() {
-  return GmailApp.getUserLabelByName(LABEL_NAME) || GmailApp.createLabel(LABEL_NAME);
+function getLabel_(name) {
+  name = name || LABEL_NAME;
+  return GmailApp.getUserLabelByName(name) || GmailApp.createLabel(name);
+}
+
+function hasLabel_(thread, name) {
+  return thread.getLabels().some(function (l) { return l.getName() === name; });
 }
 
 function removeTriggers_() {
@@ -338,5 +374,5 @@ function removeTriggers_() {
 
 // Lets the parsing functions be unit-tested outside Google (ignored in Apps Script).
 if (typeof module !== 'undefined') {
-  module.exports = { buildAlert, extractNewsletterItems, extractLinks, splitMessage };
+  module.exports = { buildAlert, extractNewsletterItems, extractLinks, splitMessage, isTransactional };
 }

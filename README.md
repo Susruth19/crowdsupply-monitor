@@ -1,5 +1,11 @@
 # Crowd Supply crowdfunding monitor
 
+> **Status: the site monitor is paused.** Crowd Supply now shows automated visitors (including GitHub's servers) a Cloudflare "Verify you are human" check, so it can't read the project list. Its schedule is switched off in `.github/workflows/monitor.yml`.
+>
+> **Use [`gmail-to-whatsapp/`](gmail-to-whatsapp/) instead.** It forwards Crowd Supply's own newsletter and project-update emails to your WhatsApp.
+
+The original site monitor is described below, in case Crowd Supply's check is ever lifted.
+
 Watches https://www.crowdsupply.com/crowdfunding and sends you a **WhatsApp message** (and/or email):
 
 - **New project**: as soon as a new crowdfunding campaign shows up (checked every 6 hours).
